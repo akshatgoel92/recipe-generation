@@ -44,6 +44,7 @@ def main():
     '''
     Execute
     '''
+    n_to_keep = 30000
     src = os.path.join("data", "RAW_recipes.csv")
     dest_train = os.path.join("data", "train.csv")
     dest_val = os.path.join("data", "val.csv")
@@ -51,6 +52,7 @@ def main():
 
 
     df = load_data(src)
+    df = df.loc[:n_to_keep, :]
     df_filtered = filter_df(df, keep)
     train, val = split_data(df_filtered)
 
