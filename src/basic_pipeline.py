@@ -108,27 +108,27 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, goal, recipe, ingredients):
         self.X = recipe[:, :-1]
         self.y = recipe[:, 1:]
-        self.goal = goal 
+        self.goal = goal
         self.ingredients = ingredients
-        
+
         assert len(self.X) == len(self.y), print("Number of examples don't match up")
 
     def __len__(self):
         return len(self.X)
 
     def __getitem__(self, index):
-        return self.X[index], self.y[index], self.goal[index], self.ingredients[index] 
-    
-    
+        return self.X[index], self.y[index], self.goal[index], self.ingredients[index]
+
+
 class BasicModel(torch.nn.Module):
     def __init__(self, wv_matrix):
         super(BasicModel, self).__init__()
         vocab_size, embedding_size = wv_matrix.shape
-        
+
         self.embedding = torch.nn.Embedding(vocab_size, embedding_size)
         self.embedding.weight.data.copy_(torch.from_numpy(wv_matrix))
         self.embedding.weight.requires_grad = False
-        
+
         self.lstm = torch.nn.LSTM(
             input_size=embedding_size,
             hidden_size=64,
@@ -142,17 +142,15 @@ class BasicModel(torch.nn.Module):
         output, state = self.lstm(embed)
         logits = self.fc(output)
         return logits
-    
-    
+
+
 class Model(torch.nn.Module):
     def __init__(self, wv_matrix):
         super(Model, self).__init__()
         vocab_size, embedding_size = wv_matrix.shape
-        
         self.embedding = torch.nn.Embedding(vocab_size, embedding_size)
         self.embedding.weight.data.copy_(torch.from_numpy(wv_matrix))
         self.embedding.weight.requires_grad = False
-        
         hidden_size = embedding_size
         self.cgru = CustomChecklistCell(embedding_size, hidden_size)
         self.fc = torch.nn.Linear(embedding_size, vocab_size)
@@ -162,12 +160,9 @@ class Model(torch.nn.Module):
         goal_embed = self.embedding(g)
         ingr_embed = self.embedding(ingr)
         goal_embed = goal_embed.sum(axis=1)
-        
         output = self.cgru(recipe_embed, goal_embed, ingr_embed)
         logits = self.fc(output)
-        
         return logits
-    
 
 class CustomChecklistCell(RNNCellBase):
 
@@ -445,27 +440,30 @@ loss_fn = torch.nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters())
 
 epochs = 1
+clip = 10
 for epoch in range(epochs):
     # Iterates through minibatches and does updates to weights
     running_loss = 0
-    for i, data in enumerate(train_generator):
+    for data in train_generator:
         recipe, label, goal, ingr = data
         label = label.reshape(-1)
         recipe, label = recipe.type(torch.LongTensor).to(device), label.type(torch.LongTensor).to(device)
         goal, ingr = goal.type(torch.LongTensor).to(device), ingr.type(torch.LongTensor).to(device)
-        
+
         optimizer.zero_grad()
         outputs = model.forward(recipe, goal, ingr)
-        break
 
         i, j, k = outputs.shape
         outputs = outputs.reshape(i*j, k)
         loss = loss_fn(outputs, label)
         loss.backward()
+
+        _ = torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
         optimizer.step()
-        
+
         running_loss += loss.item()
-    running_loss = (running_loss)/len(train_generator)
+
+    running_loss /= len(train_generator)
     print("epoch: ",epoch, "train_loss: ",running_loss)
 
 
