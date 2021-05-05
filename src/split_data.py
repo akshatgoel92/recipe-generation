@@ -44,7 +44,7 @@ def main():
     '''
     Execute
     '''
-    n_to_keep = 30000
+    n_to_keep = 15000
     src = os.path.join("data", "RAW_recipes.csv")
     dest_train = os.path.join("data", "train.csv")
     dest_val = os.path.join("data", "val.csv")
