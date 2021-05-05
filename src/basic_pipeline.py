@@ -1,12 +1,10 @@
 # +
-import numpy as np
 import pandas as pd
-import torch
+import seaborn as sns
+from collections import Counter
 import re
 import fasttext
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-
-
 import torch
 import numpy as np
 import torch.nn.functional as F
@@ -102,6 +100,28 @@ def preprocess(sent):
     return sent
 
 
+def get_fasttext_embedding_matrix(token_list):
+    word_to_number = {}
+    number_to_word = {}
+    emb_list = []
+    c = 1
+    emb_list.append(np.zeros(ft.get_dimension()))
+    token_list = token_list + ['UNK','EOS','SOS']
+    for token in token_list :
+        emb = ft.get_word_vector(token)
+        emb_list.append(emb)
+        word_to_number[token] = c
+        number_to_word[c] = token
+        c = c+1
+    emb_mat = np.vstack(emb_list)
+    return emb_mat,word_to_number,number_to_word
+
+def clear_gpu(model):
+    # Removes model from gpu and clears the memory
+    model = model.to('cpu')
+    del model
+    torch.cuda.empty_cache()
+
 class Dataset(torch.utils.data.Dataset):
     # Basic dataset class to work with torch data loader
 
@@ -163,6 +183,7 @@ class Model(torch.nn.Module):
         output = self.cgru(recipe_embed, goal_embed, ingr_embed)
         logits = self.fc(output)
         return logits
+
 
 class CustomChecklistCell(RNNCellBase):
 
@@ -292,11 +313,6 @@ class CustomChecklistCell(RNNCellBase):
         return output
 
 
-def clear_gpu(model):
-    # Removes model from gpu and clears the memory
-    model = model.to('cpu')
-    del model
-    torch.cuda.empty_cache()
 
 
 # -
@@ -308,31 +324,9 @@ df = df.drop(['id', 'contributor_id', 'minutes', 'description', 'submitted', 'ta
 df = df.dropna()
 
 df['instructions'] = df['steps'].apply(process_str_lst)
-#df['instructions'] = df['instructions'].apply(preprocess)
 df['name'] = df['name'].apply(preprocess)
 df['ingredients'] = df['ingredients'].apply(preprocess)
 df['recipe_length'] = df['instructions'].apply(sent_length)
-
-# +
-#### TEST CASE FOR TOKENIZER
-
-# x = 'tomato pasta'
-# ingr = ['olive oil', 'tomato']
-
-# for i in tokenize_sentence(x):
-#     print(idx2word[i])
-
-# print('\n')
-# for i in tokenize_sentence(ingr):
-#     print(idx2word[i])
-# -
-
-# # Trim Recipes
-
-# +
-# 95% of the recipes are under 250 words (TG!)
-
-import seaborn as sns
 
 sns.set_style('darkgrid')
 sns.displot(df['recipe_length'].values)
@@ -341,16 +335,9 @@ sum(df['recipe_length'] <= 250)/len(df)
 
 df = df[df['recipe_length'] <= 250].reset_index(drop=True)
 
-# +
-# df['tokenized_instructions'] = df['instructions'].apply(tokenize_sentence)
-# df['inp'] = df['tokenized_instructions'].apply(create_input)
-# df['out'] = df['tokenized_instructions'].apply(create_output)
-# -
-
 # # Vocab Creation
 
 # +
-from collections import Counter
 
 c = 0
 ingredients = list()
@@ -395,23 +382,6 @@ print(len(vocab))
 
 # # Emb Matrix Creation
 
-def get_fasttext_embedding_matrix(token_list):
-    word_to_number = {}
-    number_to_word = {}
-    emb_list = []
-    c = 1
-    emb_list.append(np.zeros(ft.get_dimension()))
-    token_list = token_list + ['UNK','EOS','SOS']
-    for token in token_list :
-        emb = ft.get_word_vector(token)
-        emb_list.append(emb)
-        word_to_number[token] = c 
-        number_to_word[c] = token
-        c = c+1
-    emb_mat = np.vstack(emb_list)
-    return emb_mat,word_to_number,number_to_word
-
-
 emb_mat, word2idx, idx2word =  get_fasttext_embedding_matrix(list(vocab))
 df['tokenized_instructions'] = df['instructions'].apply(lambda x: tokenize_sentence(x, word2idx))
 df['tokenized_goal'] = df['name'].apply(lambda x: tokenize_sentence(x, word2idx, sent_type='recipe'))
@@ -421,13 +391,11 @@ df['tokenized_ingredients'] = df['ingredients'].apply(lambda x: tokenize_sentenc
 # # DataLoader
 
 df_train, df_val, df_test = train_test_split(df)
-
 goal_train = pad_sequences(df_train['tokenized_goal'])
 recipe_train = pad_sequences(df_train['tokenized_instructions'])
 ingr_train = pad_sequences(df_train['tokenized_ingredients'])
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 MAX_EPOCH = 3
 # -
 
