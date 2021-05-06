@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import json
@@ -210,7 +209,7 @@ class CustomChecklistCell(RNNCellBase):
     def step(self, inp, g, E, ht=None, a=None, E_t_new=None):
 
         if ht is None:
-            ht = self.init_hidden(self, g)
+            ht = self.init_hidden(g)
 
         if a is None:
             L = E.shape[1]
@@ -284,5 +283,99 @@ for epoch in range(MAX_EPOCH):
 
     running_loss /= len(train_generator)
     print("epoch: ",epoch, "train_loss: ",running_loss)
-print(time.perf_counter() - now)
+
+    print(time.perf_counter() - now)
+
+
+recipe, label, goal, ingr = data
+
+label = label[2]
+g = goal[2, :]
+E = ingr[2, :]
+
+g = g[None, :]
+E = E[None, :]
+
+g, E = g.type(torch.LongTensor).to(device), E.type(torch.LongTensor).to(device)
+
+def tokens_to_sent(tokens):
+    words = []
+    for token in tokens:
+        if token != 0:
+            try:
+                words.append(idx2word[token])
+            except:
+                words.append(idx2word[token.item()])
+                
+    return ' '.join(words)
+
+def generate_text(g, E, method='random'):
+
+    # EXPERIMENTAL!
+    '''
+    inputs: 
+    g (1, seq_len)
+    E (1, num_of_ingredients)
+    method: random or greedy
+    '''
+
+    tokens = []
+    words = []
+
+    a = None
+    E_t_new = None
+    ht = None
+
+    g = model.embedding(g)
+    E = model.embedding(E)
+    g = g.sum(axis=1)
+
+
+    token = torch.tensor([word2idx['SOS']]).to(device)
+    tokens.append(token)
+
+    for i in range(10):
+        inp = model.embedding(tokens[i].squeeze())
+        inp = inp[None, :]
+
+        ht, ot, a, E_t_new = model.cgru.step(inp, g, E, ht, a, E_t_new)
+        
+        if method == 'greedy':
+            out = model.fc(ot)
+        elif method == 'random':
+            dist = torch.distributions.categorical.Categorical(logits=logits[0, 0])
+        
+        token = dist.sample()
+        
+        tokens.append(token)
+        words.append(idx2word[token.item()])
+        
+    return words
+# -
+
+generate_text(g, E)
+
+tokens_to_sent(E[0])
+
+############# TEST CASE #####################
+# +
+# recipe, label, goal, ingr = data
+# label = label.reshape(-1)
+# recipe, label = recipe.type(torch.LongTensor).to(device), label.type(torch.LongTensor).to(device)
+# goal, ingr = goal.type(torch.LongTensor).to(device), ingr.type(torch.LongTensor).to(device)
+
+# recipe = recipe[:1, 150:]
+# goal = goal[:1]
+# ingr = ingr[:1]
+
+# recipe_embed = model.embedding(recipe)
+# goal_embed = model.embedding(goal)
+# ingr_embed = model.embedding(ingr)
+# goal_embed = goal_embed.sum(axis=1)
+# output = model.cgru(recipe_embed, goal_embed, ingr_embed)
+# logits = model.fc(output)
+# -
+
+
+
 
