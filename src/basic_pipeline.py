@@ -216,3 +216,4 @@ np.save('goal', goal_train)
 np.save('recipe', recipe_train)
 np.save('ingr', ingr_train)
 np.save('emb_mat', emb_mat)
+3
