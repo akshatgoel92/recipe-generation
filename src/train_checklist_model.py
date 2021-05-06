@@ -98,6 +98,8 @@ class CustomChecklistCell(RNNCellBase):
         self.S = Parameter(torch.ones(3, hidden_size))
         self.P = Parameter(torch.ones(hidden_size, hidden_size))
 
+        self.reset_parameters()
+
     def init_hidden(self, g):
         return F.linear(g, self.U_g)
 
@@ -189,13 +191,13 @@ class CustomChecklistCell(RNNCellBase):
         E_t_new = torch.einsum('ml, mlk -> mlk', 1-a, E)
 
         lst_o = list()
+        ot = torch.zeros_like(inp[0])
+        zero = torch.zeros_like(inp[0])
         for t in np.arange(inp.shape[0]):
 
-            ht = self.cell(
-                inp[t], ht, g, E_t_new
-            )
+            if not torch.allclose(inp[t], zero):
+                ht, ot, a, E_t_new = self.step(inp[t], g, E, ht, a, E_t_new)
 
-            ot, a, E_t_new = self.attention(ht, a, E)
             lst_o.append(ot)
 
         output = torch.stack(lst_o)
@@ -205,6 +207,27 @@ class CustomChecklistCell(RNNCellBase):
 
         return output
 
+    def step(self, inp, g, E, ht=None, a=None, E_t_new=None):
+
+        if ht is None:
+            ht = self.init_hidden(self, g)
+
+        if a is None:
+            L = E.shape[1]
+            a = torch.zeros(inp.shape[0], L).to(device)
+            E_t_new = torch.einsum('ml, mlk -> mlk', 1 - a, E)
+
+        ht = self.cell(
+            inp, ht, g, E_t_new
+        )
+
+        ot, a, E_t_new = self.attention(ht, a, E)
+
+        return ht, ot, a, E_t_new
+
+
+MAX_EPOCH = 2
+CLIP = 50
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -222,19 +245,22 @@ a_file = open("idx2word.json", "r")
 idx2word = json.load(a_file)
 a_file.close()
 
-MAX_EPOCH = 3
+dataloader_params = {'batch_size': 32, 'shuffle': True, 'num_workers': 6}
+# Subsetting (Only for testing)
+goal_train = goal_train[:1024]
+recipe_train = recipe_train[:1024]
+ingr_train = ingr_train[:1024]
 
-dataloader_params = {'batch_size': 64, 'shuffle': True, 'num_workers': 6}
 train_data = Dataset(goal_train, recipe_train, ingr_train)
 train_generator = torch.utils.data.DataLoader(train_data, **dataloader_params)
 
 model = Model(emb_mat).to(device)
-loss_fn = torch.nn.CrossEntropyLoss()
+loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
 optimizer = torch.optim.Adam(model.parameters())
 
-epochs = 1
-clip = 10
-for epoch in range(epochs):
+import time
+now = time.perf_counter()
+for epoch in range(MAX_EPOCH):
     # Iterates through minibatches and does updates to weights
     running_loss = 0
     for data in train_generator:
@@ -251,12 +277,12 @@ for epoch in range(epochs):
         loss = loss_fn(outputs, label)
         loss.backward()
 
-        _ = torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        _ = torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP)
         optimizer.step()
 
         running_loss += loss.item()
 
     running_loss /= len(train_generator)
     print("epoch: ",epoch, "train_loss: ",running_loss)
-
+print(time.perf_counter() - now)
 
