@@ -117,10 +117,6 @@ def get_fasttext_embedding_matrix(token_list):
     return emb_mat,word_to_number,number_to_word
 
 
-
-
-
-
 # -
 
 ft = fasttext.load_model('cc.en.300.bin')
@@ -136,15 +132,13 @@ df['recipe_length'] = df['instructions'].apply(sent_length)
 
 sns.set_style('darkgrid')
 sns.displot(df['recipe_length'].values)
-sum(df['recipe_length'] <= 250)/len(df)
-# -
+sum(df['recipe_length'] <= 150)/len(df)
 
-df = df[df['recipe_length'] <= 250].reset_index(drop=True)
+df = df[df['recipe_length'] <= 150].reset_index(drop=True)
 
 # # Vocab Creation
 
 # +
-
 c = 0
 ingredients = list()
 
@@ -188,18 +182,27 @@ print(len(vocab))
 
 # # Emb Matrix Creation
 
+# +
 emb_mat, word2idx, idx2word =  get_fasttext_embedding_matrix(list(vocab))
-df['tokenized_instructions'] = df['instructions'].apply(lambda x: tokenize_sentence(x, word2idx))
-df['tokenized_goal'] = df['name'].apply(lambda x: tokenize_sentence(x, word2idx, sent_type='recipe'))
 df['ingredients'] = df['ingredients'].apply(process_str_lst2)
-df['tokenized_ingredients'] = df['ingredients'].apply(lambda x: tokenize_sentence(x, word2idx))
+
+df_train['tokenized_instructions'] = df_train['instructions'].apply(lambda x: tokenize_sentence(x, word2idx, sent_type='recipe'))
+df_train['tokenized_goal'] = df_train['name'].apply(lambda x: tokenize_sentence(x, word2idx))
+df_train['tokenized_ingredients'] = df_train['ingredients'].apply(lambda x: tokenize_sentence(x, word2idx))
+# -
 
 # # DataLoader
 
+# +
 df_train, df_val, df_test = train_test_split(df)
 goal_train = pad_sequences(df_train['tokenized_goal'])
 recipe_train = pad_sequences(df_train['tokenized_instructions'])
 ingr_train = pad_sequences(df_train['tokenized_ingredients'])
+
+df_train.to_pickle('train.pkl')
+df_val.to_pickle('val.pkl')
+df_test.to_pickle('test.pkl')
+# -
 
 
 # # Saving Outputs
@@ -216,4 +219,3 @@ np.save('goal', goal_train)
 np.save('recipe', recipe_train)
 np.save('ingr', ingr_train)
 np.save('emb_mat', emb_mat)
-3

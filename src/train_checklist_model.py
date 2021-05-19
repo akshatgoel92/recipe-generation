@@ -56,6 +56,7 @@ class BasicModel(torch.nn.Module):
         return logits
 
 
+# +
 class Model(torch.nn.Module):
     def __init__(self, wv_matrix):
         super(Model, self).__init__()
@@ -72,10 +73,9 @@ class Model(torch.nn.Module):
         goal_embed = self.embedding(g)
         ingr_embed = self.embedding(ingr)
         goal_embed = goal_embed.sum(axis=1)
-        output = self.cgru(recipe_embed, goal_embed, ingr_embed)
+        output, ht, a, E_t_new = self.cgru(recipe_embed, goal_embed, ingr_embed)
         logits = self.fc(output)
-        return logits
-
+        return logits, ht, a, E_t_new
 
 class CustomChecklistCell(RNNCellBase):
 
@@ -204,7 +204,7 @@ class CustomChecklistCell(RNNCellBase):
         if self.batch_first:
             output = output.transpose(0, 1)
 
-        return output
+        return output, ht, a, E_t_new
 
     def step(self, inp, g, E, ht=None, a=None, E_t_new=None):
 
@@ -225,13 +225,15 @@ class CustomChecklistCell(RNNCellBase):
         return ht, ot, a, E_t_new
 
 
+# -
+
 MAX_EPOCH = 2
 CLIP = 50
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 df = pd.read_csv('../dataset/RAW_recipes.csv')
-goal_train = np.load('goal.npy')
+goal_train = np.load('goal.npy') 
 recipe_train = np.load('recipe.npy')
 ingr_train = np.load('ingr.npy')
 emb_mat = np.load('emb_mat.npy')
@@ -240,9 +242,7 @@ a_file = open("word2idx.json", "r")
 word2idx = json.load(a_file)
 a_file.close()
 
-a_file = open("idx2word.json", "r")
-idx2word = json.load(a_file)
-a_file.close()
+idx2word = {v:k for k,v in word2idx.items()}
 
 dataloader_params = {'batch_size': 32, 'shuffle': True, 'num_workers': 6}
 # Subsetting (Only for testing)
@@ -257,6 +257,7 @@ model = Model(emb_mat).to(device)
 loss_fn = torch.nn.CrossEntropyLoss(ignore_index=0)
 optimizer = torch.optim.Adam(model.parameters())
 
+model.load_state_dict(torch.load('classifier_new_10.pt'))
 import time
 now = time.perf_counter()
 for epoch in range(MAX_EPOCH):
@@ -269,7 +270,7 @@ for epoch in range(MAX_EPOCH):
         goal, ingr = goal.type(torch.LongTensor).to(device), ingr.type(torch.LongTensor).to(device)
 
         optimizer.zero_grad()
-        outputs = model.forward(recipe, goal, ingr)
+        outputs, _, _, _ = model.forward(recipe, goal, ingr)
 
         i, j, k = outputs.shape
         outputs = outputs.reshape(i*j, k)
@@ -285,97 +286,3 @@ for epoch in range(MAX_EPOCH):
     print("epoch: ",epoch, "train_loss: ",running_loss)
 
     print(time.perf_counter() - now)
-
-
-recipe, label, goal, ingr = data
-
-label = label[2]
-g = goal[2, :]
-E = ingr[2, :]
-
-g = g[None, :]
-E = E[None, :]
-
-g, E = g.type(torch.LongTensor).to(device), E.type(torch.LongTensor).to(device)
-
-def tokens_to_sent(tokens):
-    words = []
-    for token in tokens:
-        if token != 0:
-            try:
-                words.append(idx2word[token])
-            except:
-                words.append(idx2word[token.item()])
-                
-    return ' '.join(words)
-
-def generate_text(g, E, method='random'):
-
-    # EXPERIMENTAL!
-    '''
-    inputs: 
-    g (1, seq_len)
-    E (1, num_of_ingredients)
-    method: random or greedy
-    '''
-
-    tokens = []
-    words = []
-
-    a = None
-    E_t_new = None
-    ht = None
-
-    g = model.embedding(g)
-    E = model.embedding(E)
-    g = g.sum(axis=1)
-
-
-    token = torch.tensor([word2idx['SOS']]).to(device)
-    tokens.append(token)
-
-    for i in range(10):
-        inp = model.embedding(tokens[i].squeeze())
-        inp = inp[None, :]
-
-        ht, ot, a, E_t_new = model.cgru.step(inp, g, E, ht, a, E_t_new)
-        
-        if method == 'greedy':
-            out = model.fc(ot)
-        elif method == 'random':
-            dist = torch.distributions.categorical.Categorical(logits=logits[0, 0])
-        
-        token = dist.sample()
-        
-        tokens.append(token)
-        words.append(idx2word[token.item()])
-        
-    return words
-# -
-
-generate_text(g, E)
-
-tokens_to_sent(E[0])
-
-############# TEST CASE #####################
-# +
-# recipe, label, goal, ingr = data
-# label = label.reshape(-1)
-# recipe, label = recipe.type(torch.LongTensor).to(device), label.type(torch.LongTensor).to(device)
-# goal, ingr = goal.type(torch.LongTensor).to(device), ingr.type(torch.LongTensor).to(device)
-
-# recipe = recipe[:1, 150:]
-# goal = goal[:1]
-# ingr = ingr[:1]
-
-# recipe_embed = model.embedding(recipe)
-# goal_embed = model.embedding(goal)
-# ingr_embed = model.embedding(ingr)
-# goal_embed = goal_embed.sum(axis=1)
-# output = model.cgru(recipe_embed, goal_embed, ingr_embed)
-# logits = model.fc(output)
-# -
-
-
-
-
