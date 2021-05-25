@@ -8,9 +8,9 @@ There are two folders.
 	-- src: contains all scripts and notebooks. It contains the following files:
 
 		Files for neural checklist model:
-		basic_pipeline.py: preprocessing
-		train_checklist_model.py: training
-		test_checklist.ipynb: testing
+		basic_pipeline.py: Preprocessing script for neural checklist
+		train_checklist_model.py: Training script for neural checklist
+		test_checklist.ipynb: Testing script for neural checklist
 		
 		Files for T5: 
 		t5_custom.ipynb: Train T5 model
