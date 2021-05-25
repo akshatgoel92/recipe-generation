@@ -3,7 +3,7 @@ This short note provides information on the folder structure and the purpose of 
 
 Folder structure
 
-There are two folders. 
+There is one main folder: 
 
 	-- src: contains all scripts and notebooks. It contains the following files:
 
