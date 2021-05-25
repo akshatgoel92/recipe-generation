@@ -8,17 +8,16 @@ There are two folders.
 	-- src: contains all scripts and notebooks. It contains the following files:
 
 		Files for neural checklist model:
-		basic_pipeline.py
-		custom_gru.py
-		train_checklist_model.py
-		test_checklist.ipynb
+		basic_pipeline.py: preprocessing
+		train_checklist_model.py: training
+		test_checklist.ipynb: testing
 		
 		Files for T5: 
 		t5_custom.ipynb: Train T5 model
 		t5_generate.ipynb: Generate predicted recipe texts for T5 model
 		
 		Files for demonstration: 
-		demontbk.zip: All files for demo notebook
+		demo folder: All files for demo notebook
 
 		Files for metrics:
 		metrics.ipynb : Generate final results table			
