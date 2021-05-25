@@ -227,7 +227,6 @@ class CustomChecklistCell(RNNCellBase):
 
 # -
 
-MAX_EPOCH = 2
 CLIP = 50
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
