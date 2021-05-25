@@ -243,7 +243,7 @@ a_file.close()
 
 idx2word = {v:k for k,v in word2idx.items()}
 
-dataloader_params = {'batch_size': 32, 'shuffle': True, 'num_workers': 6}
+dataloader_params = {'batch_size': 128, 'shuffle': True, 'num_workers': 6}
 # Subsetting (Only for testing)
 goal_train = goal_train[:1024]
 recipe_train = recipe_train[:1024]
@@ -259,6 +259,7 @@ optimizer = torch.optim.Adam(model.parameters())
 model.load_state_dict(torch.load('classifier_new_10.pt'))
 import time
 now = time.perf_counter()
+MAX_EPOCH = 40
 for epoch in range(MAX_EPOCH):
     # Iterates through minibatches and does updates to weights
     running_loss = 0
